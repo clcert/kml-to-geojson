@@ -49,9 +49,10 @@ func (c *Coord) Dist(c2 *Coord) float64 {
 }
 
 type Loc struct {
-	ID     int     `json:"id"`
-	Center Coord   `json:"center"`
-	Radius float64 `json:"radius"`
+	ID      int      `json:"-"`
+	Center  Coord    `json:"center"`
+	Radius  float64  `json:"radius"`
+	Polygon []*Coord `json:"polygon"`
 }
 
 func main() {
@@ -67,7 +68,7 @@ func main() {
 		panic(err)
 	}
 	log.Printf("XML File loaded!")
-	locations := make([]*Loc, 0)
+	locations := make(map[int]*Loc)
 	for i, placemark := range doc.Document.Folder.Placemarks {
 		if i%1000 == 0 {
 			log.Printf("[%d/%d] coords processed...", i, len(doc.Document.Folder.Placemarks))
@@ -85,7 +86,7 @@ func main() {
 				}
 			}
 		}
-		coords := make([]*Coord, 0)
+		loc.Polygon = make([]*Coord, 0)
 		coordsStr := strings.Split(placemark.MultiGeometry.Polygon.OuterBoundaryIs.LinearRing.Coordinates, " ")
 		if len(coordsStr) == 0 {
 			log.Printf("empty coords for id=%d", loc.ID)
@@ -105,19 +106,19 @@ func main() {
 			if err != nil {
 				log.Printf("cannot parse coord %s as float: %s", coordStr[1], err)
 			}
-			coords = append(coords, &Coord{
+			loc.Polygon = append(loc.Polygon, &Coord{
 				x,
 				y,
 			})
 			loc.Center.X += x
 			loc.Center.Y += y
 		}
-		loc.Center.X /= float64(len(coords))
-		loc.Center.Y /= float64(len(coords))
-		for _, coord := range coords {
+		loc.Center.X /= float64(len(loc.Polygon))
+		loc.Center.Y /= float64(len(loc.Polygon))
+		for _, coord := range loc.Polygon {
 			loc.Radius = math.Max(loc.Radius, loc.Center.Dist(coord))
 		}
-		locations = append(locations, loc)
+		locations[loc.ID] = loc
 	}
 	outFile, err := os.Create("location.json")
 	if err != nil {
