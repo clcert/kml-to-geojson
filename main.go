@@ -1,92 +1,182 @@
 package main
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"log"
-	"math"
 	"os"
 	"strconv"
 	"strings"
 )
 
+type Regiones map[string]Provincias
+type Provincias map[string]Comunas
+type Comunas map[string]Distritos
+type Distritos map[string][]*Manzana
+
+type Manzana struct {
+	ID         uint32       `json:"i"`
+	Seleccion  []uint32     `json:"s"`
+	Poligono   [][2]float32 `json:"p"`
+	Viviendas  uint32       `json:"v"`
+	Habitantes uint32       `json:"h"`
+}
+
+type Placemark struct {
+	ExtendedData struct {
+		SchemaData struct {
+			SchemaURL string `xml:"schemaURL,attr"`
+			Data      []struct {
+				Name string `xml:"name,attr"`
+				Text string `xml:",chardata"`
+			} `xml:"SimpleData"`
+		} `xml:"SchemaData"`
+	} `xml:"ExtendedData"`
+	MultiGeometry struct {
+		Polygon struct {
+			OuterBoundaryIs struct {
+				LinearRing struct {
+					Coordinates string `xml:"coordinates"`
+				} `xml:"LinearRing"`
+			} `xml:"outerBoundaryIs"`
+		} `xml:"Polygon"`
+	} `xml:"MultiGeometry"`
+}
+
 type KML struct {
 	XMLName  xml.Name `xml:"kml"`
 	Document struct {
 		Folder struct {
-			Placemarks []struct {
-				ExtendedData struct {
-					SchemaData struct {
-						SchemaURL string `xml:"schemaURL,attr"`
-						Data      []struct {
-							Name string `xml:"name,attr"`
-							Text string `xml:",chardata"`
-						} `xml:"SimpleData"`
-					} `xml:"SchemaData"`
-				} `xml:"ExtendedData"`
-				MultiGeometry struct {
-					Polygon struct {
-						OuterBoundaryIs struct {
-							LinearRing struct {
-								Coordinates string `xml:"coordinates"`
-							} `xml:"LinearRing"`
-						} `xml:"outerBoundaryIs"`
-					} `xml:"Polygon"`
-				} `xml:"MultiGeometry"`
-			} `xml:"Placemark"`
+			Placemarks []Placemark `xml:"Placemark"`
 		} `xml:"Folder"`
 	} `xml:"Document"`
 }
 
-type Coord struct {
-	X float64 `json:"x"`
-	Y float64 `json:"y"`
-}
-
-func (c *Coord) Dist(c2 *Coord) float64 {
-	return math.Sqrt(math.Abs(c.X-c2.X) + math.Abs(c.Y-c2.Y))
-}
-
-type Loc struct {
-	ID      int      `json:"-"`
-	Center  Coord    `json:"center"`
-	Radius  float64  `json:"radius"`
-	Polygon []*Coord `json:"polygon"`
-}
-
 func main() {
-	xmlFile, err := os.Open("Microdatos_Censo_2017 _Manzana.kml")
+	if len(os.Args[1:]) != 3 {
+		log.Printf("%s <manzanas_seleccionadas> <kml> <json_salida>", os.Args[0])
+		os.Exit(1)
+	}
+	xmlFile, err := os.Open(os.Args[2])
 	if err != nil {
 		fmt.Println(err)
 	}
 	defer xmlFile.Close()
-	var doc KML
 	log.Printf("Loading XML file...")
-	err = xml.NewDecoder(xmlFile).Decode(&doc)
+	dec := xml.NewDecoder(xmlFile)
+	out, err := os.Create(os.Args[3])
 	if err != nil {
-		panic(err)
+		log.Printf("cannot create out file: %s", err)
+		os.Exit(1)
 	}
-	log.Printf("XML File loaded!")
-	locations := make(map[int]*Loc)
-	for i, placemark := range doc.Document.Folder.Placemarks {
-		if i%1000 == 0 {
-			log.Printf("[%d/%d] coords processed...", i, len(doc.Document.Folder.Placemarks))
-		}
+	defer out.Close()
 
-		loc := &Loc{}
+	selected, err := os.Open(os.Args[1])
+	if err != nil {
+		log.Printf("cannot create out file: %s", err)
+		os.Exit(1)
+	}
+	defer selected.Close()
+	csvSelected := csv.NewReader(selected)
+	manzents := make(map[uint32][]uint32)
+	csvSelected.Read() // CSV Header
+	for {
+		record, err := csvSelected.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Printf("cannot read row: %s", err)
+			continue
+		}
+		if len(record) != 2 {
+			log.Printf("row shortest than expected: %v", record)
+			continue
+		}
+		id, err := strconv.ParseUint(record[1], 10, 32)
+		if err != nil {
+			log.Printf("cannot transform fid id to int: %v", err)
+			continue
+		}
+		pos, err := strconv.ParseUint(record[0], 10, 32)
+		if err != nil {
+			log.Printf("cannot transform pos id to inr: %v", err)
+			continue
+		}
+		_, ok := manzents[uint32(id)]
+		if !ok {
+			manzents[uint32(id)] = make([]uint32, 0)
+		}
+		manzents[uint32(id)] = append(manzents[uint32(id)], uint32(pos))
+	}
+	regiones := make(Regiones)
+L:
+	for {
+		t, err := dec.Token()
+		if err != nil {
+			panic(err)
+		}
+		switch s := t.(type) {
+		case xml.StartElement:
+			if s.Name.Local == "name" {
+				break L
+			}
+		}
+	}
+	dec.Skip()
+	i := 0
+	for {
+		placemark := Placemark{}
+		err := dec.Decode(&placemark)
+		if err != nil {
+			break
+		}
+		var region, provincia, comuna, distrito string
+		var personas, viviendas, id uint64
 		for _, data := range placemark.ExtendedData.SchemaData.Data {
-			if data.Name == "MANZENT" {
-				id, err := strconv.Atoi(data.Text)
+			switch data.Name {
+			case "FID":
+				id, err = strconv.ParseUint(data.Text, 10, 32)
 				if err != nil {
 					log.Printf("Error reading id: %s", err)
-				} else {
-					loc.ID = id
-					break
+				}
+			case "REGION":
+				region = data.Text
+			case "PROVINCIA":
+				provincia = data.Text
+			case "COMUNA":
+				comuna = data.Text
+			case "NOMBRE_DISTRITO":
+				distrito = data.Text
+			case "TOTAL_VIVIENDAS":
+				viviendas, err = strconv.ParseUint(data.Text, 10, 32)
+				if err != nil {
+					log.Printf("Error reading viviendas: %s", err)
+				}
+			case "TOTAL_PERSONAS":
+				personas, err = strconv.ParseUint(data.Text, 10, 32)
+				if err != nil {
+					log.Printf("Error reading personas: %s", err)
 				}
 			}
 		}
-		loc.Polygon = make([]*Coord, 0)
+		_, ok := manzents[uint32(id)]
+		if !ok {
+			continue
+		}
+		if i%1000 == 0 {
+			log.Printf("%d coords processed...", i)
+		}
+		loc := &Manzana{
+			ID:         uint32(id),
+			Habitantes: uint32(personas),
+			Viviendas:  uint32(viviendas),
+			Seleccion:  manzents[uint32(id)],
+			Poligono:   make([][2]float32, 0),
+		}
 		coordsStr := strings.Split(placemark.MultiGeometry.Polygon.OuterBoundaryIs.LinearRing.Coordinates, " ")
 		if len(coordsStr) == 0 {
 			log.Printf("empty coords for id=%d", loc.ID)
@@ -98,40 +188,38 @@ func main() {
 				log.Printf("bad formed coord: id=%d coord=%s", loc.ID, coordStr)
 				continue
 			}
-			x, err := strconv.ParseFloat(coordStr[0], 64)
+			x, err := strconv.ParseFloat(coordStr[0], 32)
 			if err != nil {
 				log.Printf("cannot parse coord %s as float: %s", coordStr[0], err)
 			}
-			y, err := strconv.ParseFloat(coordStr[1], 64)
+			y, err := strconv.ParseFloat(coordStr[1], 32)
 			if err != nil {
 				log.Printf("cannot parse coord %s as float: %s", coordStr[1], err)
 			}
-			loc.Polygon = append(loc.Polygon, &Coord{
-				x,
-				y,
-			})
-			loc.Center.X += x
-			loc.Center.Y += y
+			loc.Poligono = append(loc.Poligono, [2]float32{float32(y), float32(x)})
 		}
-		loc.Center.X /= float64(len(loc.Polygon))
-		loc.Center.Y /= float64(len(loc.Polygon))
-		for _, coord := range loc.Polygon {
-			loc.Radius = math.Max(loc.Radius, loc.Center.Dist(coord))
+		reg, ok := regiones[region]
+		if !ok {
+			reg = make(Provincias)
+			regiones[region] = reg
 		}
-		locations[loc.ID] = loc
+		prov, ok := reg[provincia]
+		if !ok {
+			prov = make(Comunas)
+			reg[provincia] = prov
+		}
+		com, ok := prov[comuna]
+		if !ok {
+			com = make(Distritos)
+			prov[comuna] = com
+		}
+		if _, ok = com[distrito]; !ok {
+			com[distrito] = make([]*Manzana, 0)
+		}
+		com[distrito] = append(com[distrito], loc)
+		i++
 	}
-	outFile, err := os.Create("location.json")
-	if err != nil {
-		log.Printf("cannot create out file: %s", err)
-		os.Exit(1)
-	}
-	defer outFile.Close()
-	log.Printf("Marshaling to JSON")
-	locsStr, err := json.MarshalIndent(&locations, " ", " ")
-	if err != nil {
-		log.Printf("cannot marshal locations: %s", err)
-		os.Exit(1)
-	}
+	enc := json.NewEncoder(out)
+	enc.Encode(&regiones)
 	log.Printf("Done!")
-	outFile.Write(locsStr)
 }
