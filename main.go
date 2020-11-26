@@ -131,7 +131,7 @@ L:
 		}
 	}
 	dec.Skip()
-	i := 0
+	i = 0
 	for {
 		placemark := Placemark{}
 		err := dec.Decode(&placemark)
