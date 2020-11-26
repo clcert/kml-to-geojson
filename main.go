@@ -12,6 +12,10 @@ import (
 	"strings"
 )
 
+type Datos struct {
+	Viviendas map[string]uint32 `json:"v"`
+	Regiones  Regiones          `json:"r"`
+}
 type Regiones map[string]Provincias
 type Provincias map[string]Comunas
 type Comunas map[string]Distritos
@@ -83,6 +87,7 @@ func main() {
 	csvSelected := csv.NewReader(selected)
 	manzents := make(map[uint32][]uint32)
 	csvSelected.Read() // CSV Header
+	var i uint32 = 1
 	for {
 		record, err := csvSelected.Read()
 		if err == io.EOF {
@@ -93,7 +98,7 @@ func main() {
 			continue
 		}
 		if len(record) != 2 {
-			log.Printf("row shortest than expected: %v", record)
+			log.Printf("row shorter than expected: %v", record)
 			continue
 		}
 		id, err := strconv.ParseUint(record[1], 10, 32)
@@ -101,18 +106,17 @@ func main() {
 			log.Printf("cannot transform fid id to int: %v", err)
 			continue
 		}
-		pos, err := strconv.ParseUint(record[0], 10, 32)
-		if err != nil {
-			log.Printf("cannot transform pos id to inr: %v", err)
-			continue
-		}
 		_, ok := manzents[uint32(id)]
 		if !ok {
 			manzents[uint32(id)] = make([]uint32, 0)
 		}
-		manzents[uint32(id)] = append(manzents[uint32(id)], uint32(pos))
+		manzents[uint32(id)] = append(manzents[uint32(id)], i)
+		i++
 	}
-	regiones := make(Regiones)
+	datos := Datos{
+		Regiones:  make(Regiones),
+		Viviendas: make(map[string]uint32),
+	}
 L:
 	for {
 		t, err := dec.Token()
@@ -163,6 +167,10 @@ L:
 				}
 			}
 		}
+		if _, ok := datos.Viviendas[region]; !ok {
+			datos.Viviendas[region] = 0
+		}
+		datos.Viviendas[region] += uint32(viviendas)
 		_, ok := manzents[uint32(id)]
 		if !ok {
 			continue
@@ -198,10 +206,10 @@ L:
 			}
 			loc.Poligono = append(loc.Poligono, [2]float32{float32(y), float32(x)})
 		}
-		reg, ok := regiones[region]
+		reg, ok := datos.Regiones[region]
 		if !ok {
 			reg = make(Provincias)
-			regiones[region] = reg
+			datos.Regiones[region] = reg
 		}
 		prov, ok := reg[provincia]
 		if !ok {
@@ -220,6 +228,6 @@ L:
 		i++
 	}
 	enc := json.NewEncoder(out)
-	enc.Encode(&regiones)
+	enc.Encode(&datos)
 	log.Printf("Done!")
 }
