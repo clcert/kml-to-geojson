@@ -97,11 +97,11 @@ func main() {
 			log.Printf("cannot read row: %s", err)
 			continue
 		}
-		if len(record) != 2 {
-			log.Printf("row shorter than expected: %v", record)
+		if len(record) != 1 {
+			log.Printf("row from length different than expected: %v (expected 1)", record)
 			continue
 		}
-		id, err := strconv.ParseUint(record[1], 10, 32)
+		id, err := strconv.ParseUint(record[0], 10, 32)
 		if err != nil {
 			log.Printf("cannot transform fid id to int: %v", err)
 			continue
