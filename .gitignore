@@ -4,3 +4,4 @@
 *.geojson
 *.js
 los400-kml-a-json
+*.csv

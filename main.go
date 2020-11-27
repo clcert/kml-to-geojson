@@ -13,6 +13,7 @@ import (
 )
 
 type Datos struct {
+	Fecha     string            `json:"f"`
 	Viviendas map[string]uint32 `json:"v"`
 	Regiones  Regiones          `json:"r"`
 }
@@ -60,25 +61,25 @@ type KML struct {
 }
 
 func main() {
-	if len(os.Args[1:]) != 3 {
-		log.Printf("%s <manzanas_seleccionadas> <kml> <json_salida>", os.Args[0])
+	if len(os.Args[1:]) != 4 {
+		log.Printf("%s <fecha-pulso> <manzanas_seleccionadas> <kml> <json_salida>", os.Args[0])
 		os.Exit(1)
 	}
-	xmlFile, err := os.Open(os.Args[2])
+	xmlFile, err := os.Open(os.Args[3])
 	if err != nil {
 		fmt.Println(err)
 	}
 	defer xmlFile.Close()
 	log.Printf("Loading XML file...")
 	dec := xml.NewDecoder(xmlFile)
-	out, err := os.Create(os.Args[3])
+	out, err := os.Create(os.Args[4])
 	if err != nil {
 		log.Printf("cannot create out file: %s", err)
 		os.Exit(1)
 	}
 	defer out.Close()
 
-	selected, err := os.Open(os.Args[1])
+	selected, err := os.Open(os.Args[2])
 	if err != nil {
 		log.Printf("cannot create out file: %s", err)
 		os.Exit(1)
@@ -114,6 +115,7 @@ func main() {
 		i++
 	}
 	datos := Datos{
+		Fecha:     os.Args[1],
 		Regiones:  make(Regiones),
 		Viviendas: make(map[string]uint32),
 	}
