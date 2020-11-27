@@ -1,4 +1,4 @@
-module github.com/clcert/los400-kml-a-json
+module github.com/clcert/lxs400-datos-mapa
 
 go 1.15
 
