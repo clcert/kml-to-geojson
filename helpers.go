@@ -73,6 +73,7 @@ func procesarManzana(placemark Placemark, fid map[uint32][]uint32) (*Manzana, er
 			if !ok {
 				return nil, errNoSelecc
 			}
+			manzana.ID = id
 			manzana.Seleccion = fids
 		case "REGION":
 			manzana.Region = data.Text
