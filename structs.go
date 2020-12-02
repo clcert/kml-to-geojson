@@ -4,20 +4,27 @@ import "encoding/xml"
 
 // Datos representa la estructura de salida de este programa.
 type Datos struct {
-	Timestamp string            `json:"ts"` // Incluye el timestamp en formato Unix Epoch del pulso usado
-	Pulso     int               `json:"p"`  // ID del pulso usado
-	Cadena    int               `json:"c"`  // ID de la cadena usada
-	URI       string            `json:"u"`  // URI al pulso
-	Viviendas map[string]uint32 `json:"v"`  // Incluye datos estadísticos sobre las viviendas elegidas
-	Regiones  Regiones          `json:"r"`  // Agrupa todas las regiones que tienen manzanas seleccionadas.
+	Timestamp  string            `json:"ts"` // Incluye el timestamp en formato Unix Epoch del pulso usado
+	Pulso      int               `json:"p"`  // ID del pulso usado
+	Cadena     int               `json:"c"`  // ID de la cadena usada
+	URI        string            `json:"u"`  // URI al pulso
+	Viviendas  map[string]uint32 `json:"v"`  // Incluye datos estadísticos sobre las viviendas de cada región
+	Habitantes map[string]uint32 `json:"h"`  // Incluye datos estadísticos sobre los habitantes de cada región
+	Regiones   Regiones          `json:"r"`  // Agrupa todas las regiones que tienen manzanas seleccionadas.
 }
 
-func (d *Datos) agregar(m *Manzana) {
+func (d *Datos) actualizarViviendas(m *Manzana) {
 	if _, ok := d.Viviendas[m.Region]; !ok {
 		d.Viviendas[m.Region] = 0
 	}
 	d.Viviendas[m.Region] += uint32(m.Viviendas)
+	if _, ok := d.Habitantes[m.Region]; !ok {
+		d.Habitantes[m.Region] = 0
+	}
+	d.Habitantes[m.Region] += uint32(m.Habitantes)
+}
 
+func (d *Datos) agregar(m *Manzana) {
 	mapaRegion, ok := d.Regiones[m.Region]
 	if !ok {
 		mapaRegion = make(Provincias)

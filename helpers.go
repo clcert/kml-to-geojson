@@ -90,11 +90,10 @@ func procesarManzana(placemark Placemark, fid map[uint32][]uint32) (*Manzana, er
 				return nil, fmt.Errorf("no se puede transformar en entero el ID de la manzana: %s", err)
 			}
 			fids, ok := fid[uint32(id)]
-			if !ok {
-				return nil, errNoSelecc
+			if ok {
+				manzana.Seleccion = fids
 			}
 			manzana.ID = uint32(id)
-			manzana.Seleccion = fids
 		case "REGION":
 			manzana.Region = data.Text
 		case "PROVINCIA":
@@ -112,10 +111,13 @@ func procesarManzana(placemark Placemark, fid map[uint32][]uint32) (*Manzana, er
 		case "TOTAL_PERSONAS":
 			habitantes, err := strconv.ParseUint(data.Text, 10, 32)
 			if err != nil {
-				return nil, fmt.Errorf("no se puede transformar en entero el número total de personas: %s", err)
+				return nil, fmt.Errorf("no se puede transformar en entero el número total de habitantes en la manzana: %s", err)
 			}
 			manzana.Habitantes = uint32(habitantes)
 		}
+	}
+	if manzana.Seleccion == nil {
+		return manzana, errNoSelecc
 	}
 	poli, err := procesarPoligono(placemark)
 	if err != nil {

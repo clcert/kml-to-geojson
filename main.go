@@ -51,12 +51,13 @@ func main() {
 	fids := leerManzanasSeleccionadas(selectedCSV)
 
 	datos := Datos{
-		Pulso:     pulse.Pulse,
-		Cadena:    pulse.Chain,
-		Timestamp: pulse.Timestamp,
-		URI:       pulse.URI,
-		Regiones:  make(Regiones),
-		Viviendas: make(map[string]uint32),
+		Pulso:      pulse.Pulse,
+		Cadena:     pulse.Chain,
+		Timestamp:  pulse.Timestamp,
+		URI:        pulse.URI,
+		Regiones:   make(Regiones),
+		Viviendas:  make(map[string]uint32),
+		Habitantes: make(map[string]uint32),
 	}
 	posicionarKML(kmlDecoder)
 	i := 0
@@ -69,12 +70,14 @@ func main() {
 		}
 		manzana, err := procesarManzana(placemark, fids)
 		if err != nil {
-			if err == errNoSelecc {
-				// No alertar estas manzanas. Son muchas.
-				continue
+			if err != errNoSelecc {
+				log.Printf("⛔️ Error procesando manzana: %s", err)
+			} else {
+				datos.actualizarViviendas(manzana)
 			}
-			log.Printf("⛔️ Error procesando manzana: %s", err)
+			continue
 		}
+		datos.actualizarViviendas(manzana)
 		datos.agregar(manzana)
 		if i%100 == 0 && i != 0 {
 			log.Printf("🍎 %d manzanas procesadas", i)
