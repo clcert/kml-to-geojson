@@ -4,9 +4,12 @@ import "encoding/xml"
 
 // Datos representa la estructura de salida de este programa.
 type Datos struct {
-	Fecha     string            `json:"f"` // Incluye el timestamp en formato Unix Epoch del pulso usado
-	Viviendas map[string]uint32 `json:"v"` // Incluye datos estadísticos sobre las viviendas elegidas
-	Regiones  Regiones          `json:"r"` // Agrupa todas las regiones que tienen manzanas seleccionadas.
+	Timestamp string            `json:"ts"` // Incluye el timestamp en formato Unix Epoch del pulso usado
+	Pulso     int               `json:"p"`  // ID del pulso usado
+	Cadena    int               `json:"c"`  // ID de la cadena usada
+	URI       string            `json:"u"`  // URI al pulso
+	Viviendas map[string]uint32 `json:"v"`  // Incluye datos estadísticos sobre las viviendas elegidas
+	Regiones  Regiones          `json:"r"`  // Agrupa todas las regiones que tienen manzanas seleccionadas.
 }
 
 func (d *Datos) agregar(m *Manzana) {
@@ -93,4 +96,16 @@ type KML struct {
 			Placemarks []Placemark `xml:"Placemark"`
 		} `xml:"Folder"`
 	} `xml:"Document"`
+}
+
+// PulseResponse extrae algunos campos importantes de una respuesta de la API del beacon.
+type PulseResponse struct {
+	Pulse Pulse `json:"pulse"`
+}
+
+type Pulse struct {
+	Timestamp string `json:"timeStamp"`
+	URI       string `json:"uri"`
+	Pulse     int    `json:"pulseIndex"`
+	Chain     int    `json:"chainIndex"`
 }

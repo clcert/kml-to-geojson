@@ -2,15 +2,35 @@ package main
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"strconv"
 	"strings"
 )
 
 var errNoSelecc = fmt.Errorf("Manzana no seleccionada")
+
+func leerInfoDePulso(timestamp string) (*Pulse, error) {
+	resp, err := http.Get(fmt.Sprintf("https://random.uchile.cl/beacon/2.0/pulse/time/%s", timestamp))
+	if err != nil {
+		return nil, err
+	}
+	p := PulseResponse{}
+	rawResponse, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(rawResponse, &p)
+	if p.Pulse.Pulse == 0 {
+		err = fmt.Errorf("Pulse not found for date")
+	}
+	return &p.Pulse, err
+}
 
 func leerManzanasSeleccionadas(r *csv.Reader) map[uint32][]uint32 {
 	r.Read() // Ignorando primera fila.
